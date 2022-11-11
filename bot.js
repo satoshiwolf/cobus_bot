@@ -15,7 +15,6 @@ const client = new Discord.Client({
 const dotenv = require("dotenv");
 dotenv.config({path: __dirname + "/.env"});
 
-
 /*########################################*/
 //Server bot
 /*########################################*/
@@ -27,20 +26,19 @@ const bodyParser = require("body-parser");
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-
 app.post("/sendbot",(req, res) => {
-    let message = "";
-    for (const key in req.body) {
-      message += `${key}: ${req.body[key]} \n`;
-    }
-    res.end();
-    rest.post(Routes.channelMessages(channel_id), {
-      body: {
-        content: `${message}`,
-      },
-    }).then(function (res) {
-      console.log(res)
-    });
+  let message = "";
+  for (const key in req.body) {
+    message += `${key}: ${req.body[key]} \n`;
+  }
+  res.end();
+  rest.post(Routes.channelMessages(process.env.CHANNEL_ID), {
+    body: {
+      content: `${message}`,
+    },
+  }).then(function (res) {
+    console.log(res)
+  });
 });
 
 app.listen(process.env.PORT, process.env.HOST, () => {
