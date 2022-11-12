@@ -94,7 +94,7 @@ client.on('messageCreate', async message => {
 });
 
 client.on('channelCreate', async channel => {
-  if(channel.name.startsWith('corbus-ticket')) {
+  if(channel.name.startsWith('cobus-ticket')) {
     post = postChannel.lastMessage;
     postChannel.lastMessage.delete();
     post = JSON.parse(post.content)
@@ -114,7 +114,7 @@ client.on('postRequest', async message => {
   channelNames = channelNames.map(channel => channel.name);
   channelNames.sort();
   if(channelNames.length <= 0) {
-    channelNames.push("corbus-ticket-0000");
+    channelNames.push("cobus-ticket-0000");
   }
   let ticketNum = channelNames.at(-1).split('-');
   ticketNum[2] = parseInt(ticketNum[2]) + 1;
