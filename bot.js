@@ -54,7 +54,7 @@ const commands = [
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-let postChannel = null;
+let postChannel = "";
 
 (async () => {
   try {
@@ -99,7 +99,7 @@ client.on('channelCreate', async channel => {
     postChannel.lastMessage.delete();
     post = JSON.parse(post.content)
     delete post.channel;
-    let message = null;
+    let message = "";
     for (const key in post) {
       message += `${key}: ${post[key]} \n`;
     }
