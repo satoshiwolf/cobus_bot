@@ -1,6 +1,5 @@
-const { REST, Routes } = require('discord.js');
+const { REST, Routes, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Discord = require('discord.js');
-const { ChannelType } = require('discord.js');
 const client = new Discord.Client({ 
   intents: [
     Discord.GatewayIntentBits.Guilds,
@@ -18,7 +17,7 @@ const client = new Discord.Client({
     Discord.Partials.User,
   ], 
 });
-
+require('events').EventEmitter.defaultMaxListeners = 0;
 const dotenv = require("dotenv");
 dotenv.config({path: __dirname + "/.env"});
 
@@ -85,25 +84,53 @@ client.on('messageCreate', async message => {
   if (message.channel.id === process.env.CHANNEL_ID && message.author.id === process.env.CLIENT_ID) {
     post = JSON.parse(message);
     channelName = post.channel;
+    postChannel.lastMessage.delete();
+    delete post.channel;
     message.guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
       parent: postChannel.parentId,
-    });
-  }
-});
+    }).then(async (ticket_cobus) => {
+      let ticket_status = false;
+      let message = "";
+      for (const key in post) {
+        message += `${key}: ${post[key]} \n`;
+      }
+      const buttons_ticket = new ActionRowBuilder()
+			.addComponents(
+				new ButtonBuilder()
+					.setCustomId('close_ticket')
+          .setEmoji('🔒')
+					.setLabel('Cerrar ticket')
+					.setStyle(ButtonStyle.Primary),
+			);
 
-client.on('channelCreate', async channel => {
-  if(channel.name.startsWith('cobus-ticket')) {
-    post = postChannel.lastMessage;
-    postChannel.lastMessage.delete();
-    post = JSON.parse(post.content)
-    delete post.channel;
-    let message = "";
-    for (const key in post) {
-      message += `${key}: ${post[key]} \n`;
-    }
-    channel.send(message);
+      ticket_cobus.send({
+        content: `${message}`,
+        components: [buttons_ticket]
+      });
+
+      client.on('interactionCreate', async interaction => {
+        if (!interaction.isButton()) return;
+        if (interaction.customId === 'close_ticket' && ticket_cobus.id === interaction.channel.id ) {
+          //&& ticket_status === true
+          if (ticket_status === true) {
+            interaction.reply({ content: '> El ticket ya está cerrado', ephemeral: true })
+          } else {
+            ticket_status = true;
+            try{
+              interaction.reply({content: '> El canal sera borrado en 5 segundos...', ephemeral: true })
+              setTimeout(async function() {
+                  interaction.channel.delete()
+              }, 5000)
+            } catch (error) {
+              console.error(error);
+              return;
+            }
+          }
+        }
+      })
+    })
   }
 });
 

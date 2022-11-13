@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Satoshiwoniisama/cobus_bot.git"
+    "url": "git+https://github.com/satoshiwolf/cobus_bot.git"
   },
-  "author": "Satoshiwoniisama and luccapolastri",
+  "author": "satoshiwolf and luccapolastri",
   "license": "MIT License",
   "bugs": {
-    "url": "https://github.com/Satoshiwoniisama/cobus_bot/issues"
+    "url": "https://github.com/satoshiwolf/cobus_bot/issues"
   },
-  "homepage": "https://github.com/Satoshiwoniisama/cobus_bot#readme",
+  "homepage": "https://github.com/satoshiwolf/cobus_bot#readme",
   "dependencies": {
     "body-parse": "^0.1.0",
     "discord.js": "^14.6.0",
