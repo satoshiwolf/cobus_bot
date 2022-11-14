@@ -53,7 +53,6 @@ const commands = [
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-let postChannel = "";
 
 (async () => {
   try {
@@ -72,11 +71,35 @@ client.on('ready', () => {
   postChannel = client.channels.cache.get(process.env.CHANNEL_ID);
 });
 
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+let tempTickets = [];
 
+client.on('interactionCreate', async interaction => {
   if (interaction.commandName === 'ping') {
     await interaction.reply('Pong!');
+  };
+
+  if(typeof interaction.customId !== "undefined" && interaction.customId === "close_ticket") {
+    
+    let deleteSeconds = 5;
+
+    if(tempTickets.includes(interaction.channelId)) {
+      interaction.reply({ content: '> El ticket ya está cerrado', ephemeral: true })
+      return;
+    }
+    tempTickets.push(interaction.channel.id);
+    try{
+      interaction.reply({content: '> El canal será borrado en '+deleteSeconds+' segundos...', ephemeral: true })
+      setTimeout(async function() {
+          interaction.channel.delete()
+          const ticketIndex = tempTickets.indexOf(interaction.channelId);
+          if (ticketIndex > -1) {
+            tempTickets.splice(ticketIndex, 1);
+          }
+      }, deleteSeconds*1000)
+    } catch (error) {
+      console.error(error);
+      return;
+    }
   }
 });
 
@@ -90,14 +113,14 @@ client.on('messageCreate', async message => {
       name: channelName,
       type: ChannelType.GuildText,
       parent: postChannel.parentId,
-    }).then(async (ticket_cobus) => {
-      let ticket_status = false;
+    }).then(async ticketChannel => {
       let message = "";
       for (const key in post) {
         message += `${key}: ${post[key]} \n`;
-      }
+      };
+
       const buttons_ticket = new ActionRowBuilder()
-			.addComponents(
+      .addComponents(
 				new ButtonBuilder()
 					.setCustomId('close_ticket')
           .setEmoji('🔒')
@@ -105,49 +128,30 @@ client.on('messageCreate', async message => {
 					.setStyle(ButtonStyle.Primary),
 			);
 
-      ticket_cobus.send({
+      ticketChannel.send({
         content: `${message}`,
         components: [buttons_ticket]
       });
-
-      client.on('interactionCreate', async interaction => {
-        if (!interaction.isButton()) return;
-        if (interaction.customId === 'close_ticket' && ticket_cobus.id === interaction.channel.id ) {
-          //&& ticket_status === true
-          if (ticket_status === true) {
-            interaction.reply({ content: '> El ticket ya está cerrado', ephemeral: true })
-          } else {
-            ticket_status = true;
-            try{
-              interaction.reply({content: '> El canal sera borrado en 5 segundos...', ephemeral: true })
-              setTimeout(async function() {
-                  interaction.channel.delete()
-              }, 5000)
-            } catch (error) {
-              console.error(error);
-              return;
-            }
-          }
-        }
-      })
     })
   }
 });
 
 client.on('postRequest', async message => {
   let channelNames = client.channels.cache.filter(channel =>
-    channel.type == 0 && channel.name.startsWith('cobus-ticket')
+    channel.type == 0 && channel.name.startsWith(process.env.TICKETS_PREFIX)
   );
   channelNames = channelNames.map(channel => channel.name);
   channelNames.sort();
   if(channelNames.length <= 0) {
-    channelNames.push("cobus-ticket-0000");
+    channelNames.push(process.env.TICKETS_PREFIX +"-0000");
   }
-  let ticketNum = channelNames.at(-1).split('-');
-  ticketNum[2] = parseInt(ticketNum[2]) + 1;
-  ticketNum[2] = ticketNum[2].toString().padStart(4, '0');
-  ticketNum = ticketNum.join('-');
-  message.channel = ticketNum;
+  var numIndex = channelNames.at(-1).lastIndexOf('-');
+  let ticketNum = channelNames.at(-1).substr(numIndex+1);
+  let ticketName = process.env.TICKETS_PREFIX;
+  ticketNum = parseInt(ticketNum) + 1;
+  ticketNum = ticketNum.toString().padStart(4, '0');
+  ticketName = ticketName+"-"+ticketNum
+  message.channel = ticketName;
   postChannel.send(JSON.stringify(message));
 });
 
