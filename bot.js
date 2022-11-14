@@ -32,7 +32,7 @@ const bodyParser = require("body-parser");
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-app.post("/sendbot",(req, res) => {
+app.post(`/${process.env.ROUTE}`,(req, res) => {
   res.end();
   client.emit('postRequest', req.body);
 });
