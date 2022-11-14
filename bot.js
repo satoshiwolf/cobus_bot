@@ -54,6 +54,14 @@ const commands = [
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
+function getGuild() {
+  return client.guilds.cache.get(process.env.GUILD_ID);
+}
+
+function getCategoryChannel() {
+  return guild.channels.cache.find(channel => channel.type === 4 && channel.name === process.env.TICKETS_CATEGORY);
+}
+
 (async () => {
   try {
     console.log('Started refreshing application (/) commands.');
@@ -68,7 +76,72 @@ const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
-  postChannel = client.channels.cache.get(process.env.CHANNEL_ID);
+  guild = getGuild();
+  ticketsCategory = getCategoryChannel();
+  if(typeof ticketsCategory === "undefined"){
+    guild.channels.create({
+      name: process.env.TICKETS_CATEGORY,
+      type: ChannelType.GuildCategory,
+    }).then(async channel => {
+      ticketsCategory = channel;
+    });
+  };
+});
+
+function createTicket(name, type, parent, message){
+  guild.channels.create({
+    name: name,
+    type: type,
+    parent: parent,
+  }).then(async ticketChannel => {
+    let post = String();
+    for (const key in message) {
+      post += `${key}: ${message[key]} \n`;
+    };
+
+    const buttons_ticket = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('close_ticket')
+        .setEmoji('🔒')
+        .setLabel('Cerrar ticket')
+        .setStyle(ButtonStyle.Primary),
+    );
+
+    ticketChannel.send({
+      content: `${post}`,
+      components: [buttons_ticket]
+    });
+  });
+}
+
+client.on('postRequest', async message => {
+  let channelNames = guild.channels.cache.filter(channel =>
+    channel.type == 0 && channel.name.startsWith(process.env.TICKETS_PREFIX)
+  );
+  channelNames = channelNames.map(channel => channel.name);
+  channelNames.sort();
+  if(channelNames.length <= 0) {
+    channelNames.push(process.env.TICKETS_PREFIX +"-0000");
+  }
+  var numIndex = channelNames.at(-1).lastIndexOf('-');
+  let ticketNum = channelNames.at(-1).substr(numIndex+1);
+  let ticketName = process.env.TICKETS_PREFIX;
+  ticketNum = parseInt(ticketNum) + 1;
+  ticketNum = ticketNum.toString().padStart(4, '0');
+  ticketName = ticketName+"-"+ticketNum;
+  if(typeof getCategoryChannel() === "undefined") {
+    guild.channels.create({
+      name: process.env.TICKETS_CATEGORY,
+      type: ChannelType.GuildCategory,
+    }).then(async channel => {
+      ticketsCategory = channel;
+      createTicket(ticketName, ChannelType.GuildText, ticketsCategory.id, message);
+    });
+  } else {
+    createTicket(ticketName, ChannelType.GuildText, ticketsCategory.id, message);
+  }
+  
 });
 
 let tempTickets = [];
@@ -83,7 +156,7 @@ client.on('interactionCreate', async interaction => {
     let deleteSeconds = 5;
 
     if(tempTickets.includes(interaction.channelId)) {
-      interaction.reply({ content: '> El ticket ya está cerrado', ephemeral: true })
+      interaction.reply({ content: '> El ticket ya está siendo cerrado', ephemeral: true })
       return;
     }
     tempTickets.push(interaction.channel.id);
@@ -101,58 +174,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
   }
-});
-
-client.on('messageCreate', async message => {
-  if (message.channel.id === process.env.CHANNEL_ID && message.author.id === process.env.CLIENT_ID) {
-    post = JSON.parse(message);
-    channelName = post.channel;
-    postChannel.lastMessage.delete();
-    delete post.channel;
-    message.guild.channels.create({
-      name: channelName,
-      type: ChannelType.GuildText,
-      parent: postChannel.parentId,
-    }).then(async ticketChannel => {
-      let message = "";
-      for (const key in post) {
-        message += `${key}: ${post[key]} \n`;
-      };
-
-      const buttons_ticket = new ActionRowBuilder()
-      .addComponents(
-				new ButtonBuilder()
-					.setCustomId('close_ticket')
-          .setEmoji('🔒')
-					.setLabel('Cerrar ticket')
-					.setStyle(ButtonStyle.Primary),
-			);
-
-      ticketChannel.send({
-        content: `${message}`,
-        components: [buttons_ticket]
-      });
-    })
-  }
-});
-
-client.on('postRequest', async message => {
-  let channelNames = client.channels.cache.filter(channel =>
-    channel.type == 0 && channel.name.startsWith(process.env.TICKETS_PREFIX)
-  );
-  channelNames = channelNames.map(channel => channel.name);
-  channelNames.sort();
-  if(channelNames.length <= 0) {
-    channelNames.push(process.env.TICKETS_PREFIX +"-0000");
-  }
-  var numIndex = channelNames.at(-1).lastIndexOf('-');
-  let ticketNum = channelNames.at(-1).substr(numIndex+1);
-  let ticketName = process.env.TICKETS_PREFIX;
-  ticketNum = parseInt(ticketNum) + 1;
-  ticketNum = ticketNum.toString().padStart(4, '0');
-  ticketName = ticketName+"-"+ticketNum
-  message.channel = ticketName;
-  postChannel.send(JSON.stringify(message));
 });
 
 client.login(process.env.TOKEN);
