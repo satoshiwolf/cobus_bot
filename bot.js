@@ -125,7 +125,6 @@ client.on("ready", () => {
       ticketsCategory = channel;
     });
   };
-  createChannel("pablo", ChannelType.GuildText);
 });
 
 client.on("postRequest", async message => {
@@ -178,9 +177,8 @@ client.on("interactionCreate", async interaction => {
     };
     tempTickets.push(interaction.channelId);
     const attachment = await discordTranscripts.createTranscript(interaction.channel, {filename: `${interaction.channel.name}.html`});
-    ticketsCategory = getChannel(ChannelType.GuildCategory, process.env.TICKETS_LOG_CHANNEL);
-    logChannel = typeof getChannel(ChannelType.GuildText, process.env.TICKETS_LOG_CHANNEL);
-    switch (logChannel) {
+    logChannel = getChannel(ChannelType.GuildText, process.env.TICKETS_LOG_CHANNEL);
+    switch (typeof logChannel) {
       case "undefined":
         createChannel(process.env.TICKETS_LOG_CHANNEL, ChannelType.GuildText, ticketsCategory.id).then(async channel => {
           channel.send({
