@@ -17,6 +17,7 @@ const client = new Discord.Client({
     Discord.Partials.User,
   ], 
 });
+const discordTranscripts = require('discord-html-transcripts');
 require('events').EventEmitter.defaultMaxListeners = 0;
 const dotenv = require("dotenv");
 dotenv.config({path: __dirname + "/.env"});
@@ -58,35 +59,17 @@ function getGuild() {
   return client.guilds.cache.get(process.env.GUILD_ID);
 }
 
-function getCategoryChannel() {
-  return guild.channels.cache.find(channel => channel.type === 4 && channel.name === process.env.TICKETS_CATEGORY);
+function getChannel(category, channelName) {
+  return guild.channels.cache.find(channel => channel.type === category && channel.name === channelName);
 }
 
-(async () => {
-  try {
-    console.log('Started refreshing application (/) commands.');
-
-    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-
-    console.log('Successfully reloaded application (/) commands.');
-  } catch (error) {
-    console.error(error);
-  }
-})();
-
-client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
-  guild = getGuild();
-  ticketsCategory = getCategoryChannel();
-  if(typeof ticketsCategory === "undefined"){
-    guild.channels.create({
-      name: process.env.TICKETS_CATEGORY,
-      type: ChannelType.GuildCategory,
-    }).then(async channel => {
-      ticketsCategory = channel;
-    });
-  };
-});
+function createChannel(name, type, parent){
+  return guild.channels.create({
+    name: name,
+    type: type,
+    parent: parent,
+  });
+};
 
 function createTicket(name, type, parent, message){
   guild.channels.create({
@@ -113,7 +96,33 @@ function createTicket(name, type, parent, message){
       components: [buttons_ticket]
     });
   });
-}
+};
+
+(async () => {
+  try {
+    console.log('Started refreshing application (/) commands.');
+
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
+
+    console.log('Successfully reloaded application (/) commands.');
+  } catch (error) {
+    console.error(error);
+  }
+})();
+
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag}!`);
+  guild = getGuild();
+  ticketsCategory = getChannel(4, process.env.TICKETS_CATEGORY);
+  if(typeof ticketsCategory === "undefined"){
+    guild.channels.create({
+      name: process.env.TICKETS_CATEGORY,
+      type: ChannelType.GuildCategory,
+    }).then(async channel => {
+      ticketsCategory = channel;
+    });
+  };
+});
 
 client.on('postRequest', async message => {
   let channelNames = guild.channels.cache.filter(channel =>
@@ -130,7 +139,7 @@ client.on('postRequest', async message => {
   ticketNum = parseInt(ticketNum) + 1;
   ticketNum = ticketNum.toString().padStart(4, '0');
   ticketName = ticketName+"-"+ticketNum;
-  if(typeof getCategoryChannel() === "undefined") {
+  if(typeof getChannel(4, process.env.TICKETS_CATEGORY) === "undefined") {
     guild.channels.create({
       name: process.env.TICKETS_CATEGORY,
       type: ChannelType.GuildCategory,
@@ -140,7 +149,7 @@ client.on('postRequest', async message => {
     });
   } else {
     createTicket(ticketName, ChannelType.GuildText, ticketsCategory.id, message);
-  }
+  };
   
 });
 
@@ -154,26 +163,42 @@ client.on('interactionCreate', async interaction => {
   if(typeof interaction.customId !== "undefined" && interaction.customId === "close_ticket") {
     
     let deleteSeconds = 5;
-
+    
     if(tempTickets.includes(interaction.channelId)) {
       interaction.reply({ content: '> El ticket ya está siendo cerrado', ephemeral: true })
       return;
-    }
-    tempTickets.push(interaction.channel.id);
+    };
+    tempTickets.push(interaction.channelId);
+    const attachment = await discordTranscripts.createTranscript(interaction.channel);
+    ticketsCategory = getChannel(4, process.env.TICKETS_CATEGORY);
+    if(typeof getChannel(1, process.env.TICKETS_LOG_CHANNEL) === "undefined") {
+      createChannel(process.env.TICKETS_LOG_CHANNEL, ChannelType.GuildText, ticketsCategory.id).then(async channel => {
+        channel.send({
+          files: [attachment],
+        });
+      });
+    } else {
+      createChannel(process.env.TICKETS_LOG_CHANNEL, ChannelType.GuildText, ticketsCategory.id).then(async channel => {
+        channel.send({
+          files: [attachment],
+        });
+      });
+    };
+
     try{
       interaction.reply({content: '> El canal será borrado en '+deleteSeconds+' segundos...', ephemeral: true })
       setTimeout(async function() {
-          interaction.channel.delete()
+          interaction.channel.delete();
           const ticketIndex = tempTickets.indexOf(interaction.channelId);
           if (ticketIndex > -1) {
             tempTickets.splice(ticketIndex, 1);
-          }
-      }, deleteSeconds*1000)
+          };
+      }, deleteSeconds*1000);
     } catch (error) {
       console.error(error);
       return;
-    }
-  }
+    };
+  };
 });
 
 client.login(process.env.TOKEN);
