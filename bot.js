@@ -74,7 +74,7 @@ function createChannel(name, type, parent) {
   });
 };
 
-function setButton(buttonName) {
+function setButton(buttonName, param1, param2) {
   switch (buttonName) {
     case "close":
       return new ActionRowBuilder()
@@ -85,7 +85,6 @@ function setButton(buttonName) {
         .setLabel("Cerrar ticket")
         .setStyle(ButtonStyle.Primary),
       );
-    break;
     case "confirm_lock":
       return new ActionRowBuilder()
       .addComponents(
@@ -94,11 +93,10 @@ function setButton(buttonName) {
           .setLabel("Cerrar")
           .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
-          .setCustomId("back_close_ticket")
+          .setCustomId("reopen_ticket")
           .setLabel("Cancelar")
           .setStyle(ButtonStyle.Secondary),
       );
-    break;
     case "confirm_close":
       return new ActionRowBuilder()
       .addComponents(
@@ -118,19 +116,25 @@ function setButton(buttonName) {
           .setLabel("Borrar ticket")
           .setStyle(ButtonStyle.Primary),
       );
-    break;
+  };
+};
+
+function setEmbed(embedName, param1, param2) {
+  switch (embedName) {
     case "confirm_ticket_lock":
       return new EmbedBuilder()
       .setColor(0xFF6961)
       .setDescription("Estas seguro de que quieres cerrar el ticket?");
-    break;
     case "ticket_lock":
       return new EmbedBuilder()
       .setColor(0xfdfd96)
-      .setDescription("Ticket cerrado con exito!")
-    break;
+      .setDescription(`Ticket cerrado por ${param1}`)
+    case "transcript":
+      return new EmbedBuilder()
+      .setColor(0xfdfd96)
+      .setDescription(`Transcripción guardada en ${param1}`)
   };
-};
+}
 
 function createTicket(name, type, parent, message){
   createChannel(name, type, parent)
@@ -213,20 +217,14 @@ client.on("interactionCreate", async interaction => {
     switch (interaction.customId) {
       case "close_ticket":
         interaction.update({
-          embeds: [setButton("confirm_ticket_lock")],
+          embeds: [setEmbed("confirm_ticket_lock")],
           components: [setButton("confirm_lock")],
         });
         break;
       case "confirm_close_ticket":
         interaction.update({
-          embeds: [setButton("ticket_lock")],
+          embeds: [setEmbed("ticket_lock", interaction.member.user.toString())],
           components: [setButton("confirm_close")],
-        });
-        break;
-      case "back_close_ticket":
-        interaction.update({
-          embeds: [],
-          components: [setButton("close")],
         });
         break;
       case "reopen_ticket":
@@ -263,12 +261,16 @@ client.on("interactionCreate", async interaction => {
           case "undefined":
             createChannel(process.env.TICKETS_LOG_CHANNEL, ChannelType.GuildText, ticketsCategory.id).then(async channel => {
               channel.send({ files: [attachment] });
-              interaction.reply({ content: `Transcripción guardada en ${channel.toString()}`, ephemeral: true });
+              interaction.reply({
+                embeds: [setEmbed("transcript", channel.toString())],
+              });
             });
             break;
           default:
             logChannel.send({ files: [attachment] });
-            interaction.reply({ content: `Transcripción guardada en ${logChannel.toString()}`, ephemeral: true });
+            interaction.reply({
+              embeds: [setEmbed("transcript", logChannel.toString())],
+            });
             break;
         };
         break;
