@@ -66,7 +66,7 @@ function getChannel(category, channelName) {
   );
 };
 
-function createChannel(name, type, parent){
+function createChannel(name, type, parent) {
   return guild.channels.create({
     name: name,
     type: type,
@@ -74,99 +74,74 @@ function createChannel(name, type, parent){
   });
 };
 
+function setButton(buttonName) {
+  switch (buttonName) {
+    case "close":
+      return new ActionRowBuilder()
+      .addComponents(
+      new ButtonBuilder()
+        .setCustomId("close_ticket")
+        .setEmoji("🔒")
+        .setLabel("Cerrar ticket")
+        .setStyle(ButtonStyle.Primary),
+      );
+    break;
+    case "confirm_lock":
+      return new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId("confirm_close_ticket")
+          .setLabel("Cerrar")
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId("back_close_ticket")
+          .setLabel("Cancelar")
+          .setStyle(ButtonStyle.Secondary),
+      );
+    break;
+    case "confirm_close":
+      return new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId("transcript_ticket")
+          .setEmoji("📝")
+          .setLabel("Transcribir")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("reopen_ticket")
+          .setEmoji("🔓")
+          .setLabel("Reabrir")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("delete_ticket")
+          .setEmoji("🛑")
+          .setLabel("Borrar ticket")
+          .setStyle(ButtonStyle.Primary),
+      );
+    break;
+    case "confirm_ticket_lock":
+      return new EmbedBuilder()
+      .setColor(0xFF6961)
+      .setDescription("Estas seguro de que quieres cerrar el ticket?");
+    break;
+    case "ticket_lock":
+      return new EmbedBuilder()
+      .setColor(0xfdfd96)
+      .setDescription("Ticket cerrado con exito!")
+    break;
+  };
+};
+
 function createTicket(name, type, parent, message){
-  guild.channels.create({
-    name: name,
-    type: type,
-    parent: parent,
-    Locked: false,
-  }).then(async ticketChannel => {
+  createChannel(name, type, parent)
+  .then(async ticketChannel => {
     let post = String();
     for (const key in message) {
       post += `${key}: ${message[key]} \n`;
     };
-
-    const buttons_ticket_close = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('close_ticket')
-        .setEmoji('🔒')
-        .setLabel('Cerrar ticket')
-        .setStyle(ButtonStyle.Primary),
-    );
-
-    const buttons_ticket_confirm_lock = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('confirm_close_ticket')
-        .setLabel('Cerrar')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('back_close_ticket')
-        .setLabel('Cancelar')
-        .setStyle(ButtonStyle.Secondary),
-    );
-    
-    const buttons_ticket_confirm_close = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-      .setCustomId('transcript_ticket')
-      .setEmoji('📝')
-      .setLabel('Transcribir')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('back_close_ticket')
-      .setEmoji('🔓')
-      .setLabel('reabrir')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('delete_ticket')
-      .setEmoji('🛑')
-      .setLabel('Cerrar')
-      .setStyle(ButtonStyle.Primary),
-    );
-
-    const confirm_ticket_lock = new EmbedBuilder()
-    .setColor(0xFF6961)
-    .setDescription('Estas seguro de que quieres cerrar el ticket?')
-
-    const ticket_lock = new EmbedBuilder()
-    .setColor(0xfdfd96)
-    .setDescription('Ticket cerrado con exito!')
-
-
     ticketChannel.send({
       content: `${post}`,
-      components: [buttons_ticket_close]
-    }).then(async ticketMessage => {
-      const filter = (interaction) => interaction.user.id === message.user_id;
-      const collector = ticketMessage.createMessageComponentCollector({})
-      collector.on('collect', (collect) => {
-        
-          switch (collect.customId) {
-            case 'close_ticket': 
-                ticketMessage.edit({
-                  embeds: [confirm_ticket_lock],
-                  components: [buttons_ticket_confirm_lock],
-                });
-              break;
-            case 'confirm_close_ticket': 
-                ticketMessage.edit({
-                  embeds: [ticket_lock],
-                  components: [buttons_ticket_confirm_close],
-                });
-              break; 
-            case 'back_close_ticket': 
-                ticketMessage.edit({
-                  embeds: [],
-                  components: [buttons_ticket_close],
-                });
-              break;
-          
-
-        }
-
-      })
+      components: [setButton("close")],
     });
   });
 };
@@ -188,10 +163,8 @@ client.on("ready", () => {
   guild = getGuild();
   ticketsCategory = getChannel(ChannelType.GuildCategory, process.env.TICKETS_CATEGORY);
   if(typeof ticketsCategory === "undefined"){
-    guild.channels.create({
-      name: process.env.TICKETS_CATEGORY,
-      type: ChannelType.GuildCategory,
-    }).then(async channel => {
+    createChannel(process.env.TICKETS_CATEGORY, ChannelType.GuildCategory)
+    .then(async channel => {
       ticketsCategory = channel;
     });
   };
@@ -216,10 +189,8 @@ client.on("postRequest", async message => {
   ticketName = `${ticketName}-${ticketNum}`;
   switch (typeof getChannel(ChannelType.GuildCategory, process.env.TICKETS_CATEGORY)) {
     case "undefined":
-      guild.channels.create({
-        name: process.env.TICKETS_CATEGORY,
-        type: ChannelType.GuildCategory,
-      }).then(async channel => {
+      createChannel(process.env.TICKETS_CATEGORY, ChannelType.GuildCategory)
+      .then(async channel => {
         ticketsCategory = channel;
         createTicket(ticketName, ChannelType.GuildText, ticketsCategory.id, message);
         console.log(ticketMessage);
@@ -238,53 +209,71 @@ client.on("interactionCreate", async interaction => {
     await interaction.reply("Pong!");
   };
 
-  if(typeof interaction.customId !== "undefined" && interaction.customId === "delete_ticket") {
-    
-    let deleteSeconds = 5;
-    
-    if(tempTickets.includes(interaction.channelId)) {
-      interaction.reply({ content: "> El ticket ya está siendo cerrado", ephemeral: true })
-      return;
-    };
-    tempTickets.push(interaction.channelId);
-
-    try{
-      interaction.reply({content: `> El canal será borrado en ${deleteSeconds} segundos...`, ephemeral: true })
-      setTimeout(async function() {
-          interaction.channel.delete();
-          const ticketIndex = tempTickets.indexOf(interaction.channelId);
-          if (ticketIndex > -1) {
-            tempTickets.splice(ticketIndex, 1);
-          };
-      }, deleteSeconds*1000);
-    } catch (error) {
-      console.error(error);
-      return;
+  if(typeof interaction.customId !== "undefined") {
+    switch (interaction.customId) {
+      case "close_ticket":
+        interaction.update({
+          embeds: [setButton("confirm_ticket_lock")],
+          components: [setButton("confirm_lock")],
+        });
+        break;
+      case "confirm_close_ticket":
+        interaction.update({
+          embeds: [setButton("ticket_lock")],
+          components: [setButton("confirm_close")],
+        });
+        break;
+      case "back_close_ticket":
+        interaction.update({
+          embeds: [],
+          components: [setButton("close")],
+        });
+        break;
+      case "reopen_ticket":
+        interaction.update({
+          embeds: [],
+          components: [setButton("close")],
+        });
+        break;
+      case "delete_ticket":
+        deleteSeconds = 5;
+        if(tempTickets.includes(interaction.channelId)) {
+          interaction.reply({ content: "> El ticket ya está siendo cerrado", ephemeral: true })
+          return;
+        };
+        tempTickets.push(interaction.channelId);
+        try{
+          interaction.reply({content: `> El canal será borrado en ${deleteSeconds} segundos...`, ephemeral: true })
+          setTimeout(async function() {
+              interaction.channel.delete();
+              const ticketIndex = tempTickets.indexOf(interaction.channelId);
+              if (ticketIndex > -1) {
+                tempTickets.splice(ticketIndex, 1);
+              };
+          }, deleteSeconds*1000);
+        } catch (error) {
+          console.error(error);
+          return;
+        };
+        break;
+      case "transcript_ticket":
+        const attachment = await discordTranscripts.createTranscript(interaction.channel, {filename: `${interaction.channel.name}.html`});
+        logChannel = getChannel(ChannelType.GuildText, process.env.TICKETS_LOG_CHANNEL);
+        switch (typeof logChannel) {
+          case "undefined":
+            createChannel(process.env.TICKETS_LOG_CHANNEL, ChannelType.GuildText, ticketsCategory.id).then(async channel => {
+              channel.send({ files: [attachment] });
+              interaction.reply({ content: `Transcripción guardada en ${channel.toString()}`, ephemeral: true });
+            });
+            break;
+          default:
+            logChannel.send({ files: [attachment] });
+            interaction.reply({ content: `Transcripción guardada en ${logChannel.toString()}`, ephemeral: true });
+            break;
+        };
+        break;
     };
   };
-
-  if(typeof interaction.customId !== "undefined" && interaction.customId === "transcript_ticket") {
-    const attachment = await discordTranscripts.createTranscript(interaction.channel, {filename: `${interaction.channel.name}.html`});
-    logChannel = getChannel(ChannelType.GuildText, process.env.TICKETS_LOG_CHANNEL);
-    switch (typeof logChannel) {
-      case "undefined":
-        createChannel(process.env.TICKETS_LOG_CHANNEL, ChannelType.GuildText, ticketsCategory.id).then(async channel => {
-          channel.send({
-            files: [attachment],
-          });
-        });
-        break;
-      default:
-        logChannel.send({
-          files: [attachment],
-        });
-        break;
-    };
-  }
-
-
-
-
 });
 
 client.login(process.env.TOKEN);
