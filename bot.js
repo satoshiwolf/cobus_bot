@@ -1,4 +1,4 @@
-const { REST, Routes, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { REST, Routes, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, transcriptEmbed } = require("discord.js");
 const Discord = require("discord.js");
 const client = new Discord.Client({ 
   intents: [
@@ -79,24 +79,94 @@ function createTicket(name, type, parent, message){
     name: name,
     type: type,
     parent: parent,
+    Locked: false,
   }).then(async ticketChannel => {
     let post = String();
     for (const key in message) {
       post += `${key}: ${message[key]} \n`;
     };
 
-    const buttons_ticket = new ActionRowBuilder()
+    const buttons_ticket_close = new ActionRowBuilder()
     .addComponents(
       new ButtonBuilder()
-        .setCustomId("close_ticket")
-        .setEmoji("🔒")
-        .setLabel("Cerrar ticket")
+        .setCustomId('close_ticket')
+        .setEmoji('🔒')
+        .setLabel('Cerrar ticket')
         .setStyle(ButtonStyle.Primary),
     );
 
+    const buttons_ticket_confirm_lock = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('confirm_close_ticket')
+        .setLabel('Cerrar')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId('back_close_ticket')
+        .setLabel('Cancelar')
+        .setStyle(ButtonStyle.Secondary),
+    );
+    
+    const buttons_ticket_confirm_close = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+      .setCustomId('transcript_ticket')
+      .setEmoji('📝')
+      .setLabel('Transcribir')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('back_close_ticket')
+      .setEmoji('🔓')
+      .setLabel('reabrir')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('delete_ticket')
+      .setEmoji('🛑')
+      .setLabel('Cerrar')
+      .setStyle(ButtonStyle.Primary),
+    );
+
+    const confirm_ticket_lock = new EmbedBuilder()
+    .setColor(0xFF6961)
+    .setDescription('Estas seguro de que quieres cerrar el ticket?')
+
+    const ticket_lock = new EmbedBuilder()
+    .setColor(0xfdfd96)
+    .setDescription('Ticket cerrado con exito!')
+
+
     ticketChannel.send({
       content: `${post}`,
-      components: [buttons_ticket]
+      components: [buttons_ticket_close]
+    }).then(async ticketMessage => {
+      const filter = (interaction) => interaction.user.id === message.user_id;
+      const collector = ticketMessage.createMessageComponentCollector({})
+      collector.on('collect', (collect) => {
+        
+          switch (collect.customId) {
+            case 'close_ticket': 
+                ticketMessage.edit({
+                  embeds: [confirm_ticket_lock],
+                  components: [buttons_ticket_confirm_lock],
+                });
+              break;
+            case 'confirm_close_ticket': 
+                ticketMessage.edit({
+                  embeds: [ticket_lock],
+                  components: [buttons_ticket_confirm_close],
+                });
+              break; 
+            case 'back_close_ticket': 
+                ticketMessage.edit({
+                  embeds: [],
+                  components: [buttons_ticket_close],
+                });
+              break;
+          
+
+        }
+
+      })
     });
   });
 };
@@ -152,6 +222,7 @@ client.on("postRequest", async message => {
       }).then(async channel => {
         ticketsCategory = channel;
         createTicket(ticketName, ChannelType.GuildText, ticketsCategory.id, message);
+        console.log(ticketMessage);
       });
       break;
     default:
@@ -167,7 +238,7 @@ client.on("interactionCreate", async interaction => {
     await interaction.reply("Pong!");
   };
 
-  if(typeof interaction.customId !== "undefined" && interaction.customId === "close_ticket") {
+  if(typeof interaction.customId !== "undefined" && interaction.customId === "delete_ticket") {
     
     let deleteSeconds = 5;
     
@@ -176,6 +247,23 @@ client.on("interactionCreate", async interaction => {
       return;
     };
     tempTickets.push(interaction.channelId);
+
+    try{
+      interaction.reply({content: `> El canal será borrado en ${deleteSeconds} segundos...`, ephemeral: true })
+      setTimeout(async function() {
+          interaction.channel.delete();
+          const ticketIndex = tempTickets.indexOf(interaction.channelId);
+          if (ticketIndex > -1) {
+            tempTickets.splice(ticketIndex, 1);
+          };
+      }, deleteSeconds*1000);
+    } catch (error) {
+      console.error(error);
+      return;
+    };
+  };
+
+  if(typeof interaction.customId !== "undefined" && interaction.customId === "transcript_ticket") {
     const attachment = await discordTranscripts.createTranscript(interaction.channel, {filename: `${interaction.channel.name}.html`});
     logChannel = getChannel(ChannelType.GuildText, process.env.TICKETS_LOG_CHANNEL);
     switch (typeof logChannel) {
@@ -192,21 +280,11 @@ client.on("interactionCreate", async interaction => {
         });
         break;
     };
+  }
 
-    try{
-      interaction.reply({content: `> El canal será borrado en ${deleteSeconds} segundos...`, ephemeral: true })
-      setTimeout(async function() {
-          interaction.channel.delete();
-          const ticketIndex = tempTickets.indexOf(interaction.channelId);
-          if (ticketIndex > -1) {
-            tempTickets.splice(ticketIndex, 1);
-          };
-      }, deleteSeconds*1000);
-    } catch (error) {
-      console.error(error);
-      return;
-    };
-  };
+
+
+
 });
 
 client.login(process.env.TOKEN);
