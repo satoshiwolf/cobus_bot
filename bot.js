@@ -1,4 +1,4 @@
-const { REST, Routes, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, transcriptEmbed } = require("discord.js");
+const { REST, Routes, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionsBitField, PermissionFlagsBits, transcriptEmbed } = require("discord.js");
 const Discord = require("discord.js");
 const client = new Discord.Client({ 
   intents: [
@@ -73,6 +73,10 @@ function createChannel(name, type, parent) {
     parent: parent,
   });
 };
+
+function changePermissions(channel, role, permission) {
+  channel.permissionOverwrites.edit(role, permission);
+}
 
 function setButton(buttonName, param1, param2) {
   switch (buttonName) {
@@ -169,6 +173,7 @@ client.on("ready", () => {
   if(typeof ticketsCategory === "undefined"){
     createChannel(process.env.TICKETS_CATEGORY, ChannelType.GuildCategory)
     .then(async channel => {
+      changePermissions(channel, guild.roles.everyone, {ViewChannel: false});
       ticketsCategory = channel;
     });
   };
@@ -195,6 +200,7 @@ client.on("postRequest", async message => {
     case "undefined":
       createChannel(process.env.TICKETS_CATEGORY, ChannelType.GuildCategory)
       .then(async channel => {
+        changePermissions(channel, guild.roles.everyone, {ViewChannel: false});
         ticketsCategory = channel;
         createTicket(ticketName, ChannelType.GuildText, ticketsCategory.id, message);
         console.log(ticketMessage);
