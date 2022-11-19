@@ -158,7 +158,7 @@ function setEmbed(embedName, param1, param2) {
 
     case "post":
       let post = new EmbedBuilder()
-      .setColor(0xFF6961);
+      .setColor(0x009AE2);
       for (const key in param1) { post.addFields({name: key, value: param1[key]}); };
       if(param2){ post.setImage(param2); };
       post.setTimestamp();
@@ -224,7 +224,7 @@ client.on("ready", () => {
 client.on("postRequest", async message => {
   let channelNames = guild.channels.cache.filter(channel =>
     channel.type == ChannelType.GuildText &&
-    channel.name.startsWith(process.env.TICKETS_PREFIX) &&
+    channel.name.includes(process.env.TICKETS_PREFIX) &&
     /[0-9]+$/.test(channel.name)
   );
   channelNames = channelNames.map(channel => channel.name);
@@ -282,6 +282,8 @@ client.on("interactionCreate", async interaction => {
           interaction.channel.send({
             embeds: [setEmbed("ticket_lock", interaction.member.user.toString())],
           });
+          interaction.channel.setName(`🔒-${interaction.channel.name}`)
+            .catch(console.error);
         } else {
           interaction.reply({ content: "> El ticket ya ha sido cerrado", ephemeral: true })
         };
@@ -292,6 +294,8 @@ client.on("interactionCreate", async interaction => {
         break;
 
       case "reopen_ticket":
+        interaction.channel.setName(interaction.channel.name.replace("🔒-", ""))
+          .catch(console.error);
         interaction.update({
           components: [setButton("close")],
         });
