@@ -29,6 +29,7 @@ dotenv.config({path: `${__dirname}/.env`});
 const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
+const { request } = require("https");
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -108,7 +109,7 @@ function setButton(buttonName, param1, param2) {
           .setLabel("Cancelar")
           .setStyle(ButtonStyle.Secondary),
       );
-      
+
     case "confirm_close":
       return new ActionRowBuilder()
       .addComponents(
@@ -141,12 +142,14 @@ function setEmbed(embedName, param1, param2) {
     case "ticket_lock":
       return new EmbedBuilder()
       .setColor(0xfdfd96)
-      .setDescription(`Ticket cerrado por ${param1}`);
+      .setDescription(`Ticket cerrado por ${param1}`)
+      .setTimestamp();
 
     case "ticket_unlock":
       return new EmbedBuilder()
       .setColor(0x1EC45B)
-      .setDescription(`Ticket reabierto por ${param1}`);
+      .setDescription(`Ticket reabierto por ${param1}`)
+      .setTimestamp();
 
     case "transcript":
       return new EmbedBuilder()
@@ -158,27 +161,34 @@ function setEmbed(embedName, param1, param2) {
       .setColor(0xFF6961);
       for (const key in param1) { post.addFields({name: key, value: param1[key]}); };
       if(param2){ post.setImage(param2); };
+      post.setTimestamp();
       return post;
   };
 }
 
 function isImage(url) {
-  return /\.(jpg|jpeg|png|webp|avif|gif)$/.test(url);
-}
+  let req = request(url, (res) => {
+    return res.headers['content-type'].startsWith('image/');
+  });
+  req.end();
+  return req;
+};
+
+function isUrl(url) {
+  try { return Boolean(new URL(url)); }
+  catch (e) { return false; };
+};
 
 function createTicket(name, type, parent, message){
   createChannel(name, type, parent)
   .then(async ticketChannel => {
     let img = String();
     Object.keys(message).forEach(
-      key => (message[key] === "") ? message[key] = "-" : message[key],
+      key => {
+        if(message[key] === "") {message[key] = "-"; return;};
+        if(isUrl(message[key]) && isImage(message[key])) {img = message[key]; delete message[key];};
+      }
     );
-    for (const key in message) {
-      if(isImage(message[key])){
-        img = message[key];
-        delete message[key];
-      };
-    };
     ticketChannel.send({
       embeds: [setEmbed("post", message, img)],
       components: [setButton("close")],
