@@ -158,7 +158,7 @@ function setEmbed(embedName, param1, param2) {
 
     case "post":
       let post = new EmbedBuilder()
-      .setColor(0x009AE2);
+      .setColor(0x5865F2);
       for (const key in param1) { post.addFields({name: key, value: param1[key]}); };
       if(param2){ post.setImage(param2); };
       post.setTimestamp();
