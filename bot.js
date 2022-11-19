@@ -66,6 +66,12 @@ function getChannel(category, channelName) {
   );
 };
 
+async function getFirstMessage(channel){
+  fetchMessage = await channel.messages.fetch({ after: 1, limit: 1 });
+  firstMessage = fetchMessage.first();
+  return firstMessage;
+}
+
 function createChannel(name, type, parent) {
   return guild.channels.create({
     name: name,
@@ -89,6 +95,7 @@ function setButton(buttonName, param1, param2) {
         .setLabel("Cerrar ticket")
         .setStyle(ButtonStyle.Primary),
       );
+
     case "confirm_lock":
       return new ActionRowBuilder()
       .addComponents(
@@ -97,10 +104,11 @@ function setButton(buttonName, param1, param2) {
           .setLabel("Cerrar")
           .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
-          .setCustomId("reopen_ticket")
+          .setCustomId("cancel_close")
           .setLabel("Cancelar")
           .setStyle(ButtonStyle.Secondary),
       );
+      
     case "confirm_close":
       return new ActionRowBuilder()
       .addComponents(
@@ -129,26 +137,50 @@ function setEmbed(embedName, param1, param2) {
       return new EmbedBuilder()
       .setColor(0xFF6961)
       .setDescription("Estas seguro de que quieres cerrar el ticket?");
+
     case "ticket_lock":
       return new EmbedBuilder()
       .setColor(0xfdfd96)
-      .setDescription(`Ticket cerrado por ${param1}`)
+      .setDescription(`Ticket cerrado por ${param1}`);
+
+    case "ticket_unlock":
+      return new EmbedBuilder()
+      .setColor(0x1EC45B)
+      .setDescription(`Ticket reabierto por ${param1}`);
+
     case "transcript":
       return new EmbedBuilder()
       .setColor(0xfdfd96)
-      .setDescription(`Transcripción guardada en ${param1}`)
+      .setDescription(`Transcripción guardada en ${param1}`);
+
+    case "post":
+      let post = new EmbedBuilder()
+      .setColor(0xFF6961);
+      for (const key in param1) { post.addFields({name: key, value: param1[key]}); };
+      if(param2){ post.setImage(param2); };
+      return post;
   };
+}
+
+function isImage(url) {
+  return /\.(jpg|jpeg|png|webp|avif|gif)$/.test(url);
 }
 
 function createTicket(name, type, parent, message){
   createChannel(name, type, parent)
   .then(async ticketChannel => {
-    let post = String();
+    let img = String();
+    Object.keys(message).forEach(
+      key => (message[key] === "") ? message[key] = "-" : message[key],
+    );
     for (const key in message) {
-      post += `${key}: ${message[key]} \n`;
+      if(isImage(message[key])){
+        img = message[key];
+        delete message[key];
+      };
     };
     ticketChannel.send({
-      content: `${post}`,
+      embeds: [setEmbed("post", message, img)],
       components: [setButton("close")],
     });
   });
@@ -222,23 +254,42 @@ client.on("interactionCreate", async interaction => {
   if(typeof interaction.customId !== "undefined") {
     switch (interaction.customId) {
       case "close_ticket":
-        interaction.update({
+        interaction.update({});
+        interaction.channel.send({
           embeds: [setEmbed("confirm_ticket_lock")],
           components: [setButton("confirm_lock")],
         });
         break;
+
       case "confirm_close_ticket":
-        interaction.update({
-          embeds: [setEmbed("ticket_lock", interaction.member.user.toString())],
-          components: [setButton("confirm_close")],
-        });
+        interaction.message.delete();
+        firstMessage = await getFirstMessage(interaction.channel);
+        buttonId = firstMessage.components[0].components[0].customId;
+        if(buttonId == "close_ticket"){
+          firstMessage.edit({
+            components: [setButton("confirm_close")],
+          });
+          interaction.channel.send({
+            embeds: [setEmbed("ticket_lock", interaction.member.user.toString())],
+          });
+        } else {
+          interaction.reply({ content: "> El ticket ya ha sido cerrado", ephemeral: true })
+        };
         break;
+
+      case "cancel_close":
+        interaction.message.delete();
+        break;
+
       case "reopen_ticket":
         interaction.update({
-          embeds: [],
           components: [setButton("close")],
         });
+        interaction.channel.send({
+          embeds: [setEmbed("ticket_unlock", interaction.member.user.toString())],
+        });
         break;
+
       case "delete_ticket":
         deleteSeconds = 5;
         if(tempTickets.includes(interaction.channelId)) {
@@ -260,21 +311,23 @@ client.on("interactionCreate", async interaction => {
           return;
         };
         break;
+
       case "transcript_ticket":
+        interaction.update({});
         const attachment = await discordTranscripts.createTranscript(interaction.channel, {filename: `${interaction.channel.name}.html`});
         logChannel = getChannel(ChannelType.GuildText, process.env.TICKETS_LOG_CHANNEL);
         switch (typeof logChannel) {
           case "undefined":
             createChannel(process.env.TICKETS_LOG_CHANNEL, ChannelType.GuildText, ticketsCategory.id).then(async channel => {
               channel.send({ files: [attachment] });
-              interaction.reply({
+              interaction.channel.send({
                 embeds: [setEmbed("transcript", channel.toString())],
               });
             });
             break;
           default:
             logChannel.send({ files: [attachment] });
-            interaction.reply({
+            interaction.channel.send({
               embeds: [setEmbed("transcript", logChannel.toString())],
             });
             break;
