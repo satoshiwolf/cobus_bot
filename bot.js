@@ -5,10 +5,7 @@ const {
     ActionRowBuilder, 
     ButtonBuilder, 
     ButtonStyle, 
-    EmbedBuilder, 
-    PermissionsBitField, 
-    PermissionFlagsBits, 
-    transcriptEmbed } = require("discord.js");
+    EmbedBuilder } = require("discord.js");
 const Discord = require("discord.js");
 const client = new Discord.Client({
     intents: [
@@ -48,20 +45,24 @@ const {
 /*########################################*/
 //MongoDB
 /*########################################*/
+
 const { Schema, model, mongoose } = require('mongoose');
 mongoose_url = `mongodb://${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}`
 
 mongoose.connect(mongoose_url, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-}).then(db =>
-    console.log('Conexión a MongoDB exitosa!'
-)).catch(err =>
+}).then(db => {
+    console.log('Conexión a MongoDB exitosa!');
+}).catch(err =>
     console.error(`Ocurrió un error al conectarse con MongoDB:${err}`
 ));
 
+const connection = mongoose.connection;
+
 let mongoSchema;
 let mongoModel;
+let tempTickets = [];
 
 /*########################################*/
 //End MongoDB
@@ -124,10 +125,11 @@ function isUrl(url) {
     catch (e) { return false; };
 };
 
-function isNumber(str) {
-    if (typeof str != "string") return false;
-    return !isNaN(str) && !isNaN(parseFloat(str));
-};
+function convertUTCDateToLocalDate(date) {
+    var newDate = new Date(date);
+    newDate.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return newDate;
+}
 
 function getGuild() {
     return client.guilds.cache.get(GUILD_ID);
@@ -244,8 +246,8 @@ function createTicket(name, type, parent, message){
         insertMongo(ticketChannel.id, message);
         let img = String();
         Object.keys(message).forEach( key => {
-            if(message[key] === "") {message[key] = "-"; return;};
-            if(isUrl(message[key]) && isImage(message[key])) {img = message[key]; delete message[key];};
+            if(message[key] === "") { message[key] = "-"; return; };
+            if(isUrl(message[key]) && isImage(message[key])) { img = message[key]; delete message[key]; };
         });
         ticketChannel.send({
             embeds: [setEmbed("post", message, img)],
@@ -263,10 +265,18 @@ function closeTicket(channel, message, author){
     });
     channel.setName(`🔒-${channel.name}`)
         .catch(console.error);
+    getParticipants(channel).then(users => { 
+        const data = {
+            closing_user: author.id, 
+            participantes: users,
+            estado: false
+        };
+        updateMongo(channel.id, data);
+    });
 };
 
-function reopenTicket(channel, interaction, author){
-    channel.setName(channel.name.replace("🔒-", ""))
+function reopenTicket(channel, interaction, author) {
+    channel.setName(channel.name.slice(channel.name.lastIndexOf("🔒")+2))
         .catch(console.error);
     interaction.update({
         components: [setButton("close")],
@@ -274,6 +284,11 @@ function reopenTicket(channel, interaction, author){
     channel.send({
         embeds: [setEmbed("ticket_unlock", author.toString())],
     });
+    const data = {
+        estado: true,
+        reabierto: true
+    };
+    updateMongo(channel.id, data);
 };
 
 function deleteTicket(seconds, channel, interaction){
@@ -319,10 +334,17 @@ async function transcriptTicket(channel, interaction) {
     };
 };
 
+async function getParticipants(channel) {
+    let messages = await channel.messages.fetch();
+    const users = messages.map(m => m.author.id);
+    return [...new Set(users)].filter(id => id !== client.user.id);
+};
+
 function insertMongo(id, data){
     let mongoData = Object.assign({}, data);
     mongoData = Object.assign({id: id}, mongoData);
     Object.assign(mongoData, {closing_user: ""});
+    Object.assign(mongoData, {participantes: ""});
     Object.assign(mongoData, {estado: true});
     Object.assign(mongoData, {reabierto: false});
     if(typeof mongoSchema === "undefined") {
@@ -337,6 +359,19 @@ function insertMongo(id, data){
         if (err) return console.error(err);
         console.log("Guardado con éxito");
     });
+};
+
+function updateMongo(id, data){
+    const collection  = connection.db.collection(MONGO_COLLECTION);
+    Object.assign(data, {updatedAt: new Date()});
+    const filter = { id: id };
+    collection.findOneAndUpdate(filter, {$set:data}, {new:true})
+};
+
+function deleteMongo(id) {
+    const collection  = connection.db.collection(MONGO_COLLECTION);
+    const filter = { id: id };
+    collection.deleteOne(filter)
 };
 
 (async () => {
@@ -379,9 +414,9 @@ client.on("postRequest", async message => {
     channelNames.sort();
     if(channelNames.length <= 0) {
         channelNames.push(`${TICKETS_PREFIX}-0000`);
-    }
+    };
     var numIndex = channelNames.at(-1).lastIndexOf("-");
-    let ticketNum = channelNames.at(-1).substr(numIndex+1);
+    let ticketNum = channelNames.at(-1).slice(numIndex+1);
     let ticketName = TICKETS_PREFIX;
     ticketNum = parseInt(ticketNum) + 1;
     ticketNum = ticketNum.toString().padStart(4, "0");
@@ -401,7 +436,7 @@ client.on("postRequest", async message => {
     };
 });
   
-let tempTickets = [];
+
   
 client.on("interactionCreate", async interaction => {
     if (interaction.commandName === "ping") {
@@ -444,9 +479,9 @@ client.on("interactionCreate", async interaction => {
             case "transcript_ticket":
                 transcriptTicket(interaction.channel, interaction);
                 break;
-      };
+        };
     };
-  });
+});
 
 /*########################################*/
 //End Events bot
