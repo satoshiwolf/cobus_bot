@@ -160,7 +160,6 @@ function insertMongo(id, data) {
     let fields = new mongoModel(mongoData);
     fields.save(function (err) {
         if (err) return console.error(err);
-        console.log("Guardado con éxito");
     });
 };
 
@@ -515,16 +514,9 @@ client.on("postRequest", async message => {
         channel.name.includes(TICKETS_PREFIX) &&
         /[0-9]+$/.test(channel.name)
     ).map(channel => channel.name);
-    channelNames.sort();
-    if(channelNames.length <= 0) {
-        channelNames.push(`${TICKETS_PREFIX}-0000`);
-    };
-    var numIndex = channelNames.at(-1).lastIndexOf("-");
-    let ticketNum = channelNames.at(-1).slice(numIndex+1);
-    let ticketName = TICKETS_PREFIX;
-    ticketNum = parseInt(ticketNum) + 1;
+    let ticketNum = channelNames.length+1;
     ticketNum = ticketNum.toString().padStart(4, "0");
-    ticketName = `${ticketName}-${ticketNum}`;
+    ticketName = `${TICKETS_PREFIX}-${ticketNum}`;
     switch (typeof getChannel(ChannelType.GuildCategory, TICKETS_CATEGORY)) {
         case "undefined":
             createChannel(TICKETS_CATEGORY, ChannelType.GuildCategory)
