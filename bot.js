@@ -2,8 +2,9 @@ const {
     REST, 
     Routes, 
     ChannelType, 
-    ActionRowBuilder, 
-    ButtonBuilder, 
+    ActionRowBuilder,
+    ButtonBuilder,
+    SelectMenuBuilder, 
     ButtonStyle, 
     EmbedBuilder } = require("discord.js");
 const Discord = require("discord.js");
@@ -100,7 +101,18 @@ app.listen(PORT, HOST, () => {
 const commands = [{
     name: "ping",
     description: "Replies with Pong!",
+},
+{
+    name: "stats",
+    description: "Muestra las estadísticas de los tickets",
 }];
+
+const statQuery = [
+    {name: "total", value: {}},
+    {name: "abiertos", value: {estado: true}},
+    {name: "cerrados", value: {estado: false}},
+    {name: "reabiertos", value: {reabierto: true}},
+];
 
 /*########################################*/
 //End Commands bot
@@ -129,7 +141,47 @@ function convertUTCDateToLocalDate(date) {
     var newDate = new Date(date);
     newDate.setMinutes(date.getMinutes() - date.getTimezoneOffset());
     return newDate;
-}
+};
+
+function insertMongo(id, data) {
+    let mongoData = Object.assign({}, data);
+    mongoData = Object.assign({id: id}, mongoData);
+    Object.assign(mongoData, {closing_user: ""});
+    Object.assign(mongoData, {participantes: ""});
+    Object.assign(mongoData, {estado: true});
+    Object.assign(mongoData, {reabierto: false});
+    if(typeof mongoSchema === "undefined") {
+        for(const key in mongoData) {
+            mongoSchema = Object.assign({}, mongoSchema, {[key]: typeof mongoData[key]});
+        };
+        mongoSchema = new Schema( mongoSchema, { timestamps: true });
+        mongoModel = model(MONGO_COLLECTION, mongoSchema);
+    };
+    let fields = new mongoModel(mongoData);
+    fields.save(function (err) {
+        if (err) return console.error(err);
+        console.log("Guardado con éxito");
+    });
+};
+
+function updateMongo(id, data){
+    const collection  = connection.db.collection(MONGO_COLLECTION);
+    Object.assign(data, {updatedAt: new Date()});
+    const filter = { id: id };
+    collection.findOneAndUpdate(filter, {$set:data}, {new:true})
+};
+
+function deleteMongo(id) {
+    const collection  = connection.db.collection(MONGO_COLLECTION);
+    const filter = { id: id };
+    collection.deleteOne(filter);
+};
+
+async function countMongo(filter) {
+    const collection  = connection.db.collection(MONGO_COLLECTION);
+    result = await collection.countDocuments(filter);
+    return result;
+};
 
 function getGuild() {
     return client.guilds.cache.get(GUILD_ID);
@@ -174,16 +226,16 @@ function setButton(buttonName) {
 
         case "confirm_lock":
             return new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                .setCustomId("confirm_close_ticket")
-                .setLabel("Cerrar")
-                .setStyle(ButtonStyle.Danger),
-            new ButtonBuilder()
-          .setCustomId("cancel_close")
-          .setLabel("Cancelar")
-          .setStyle(ButtonStyle.Secondary),
-      );
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId("confirm_close_ticket")
+                        .setLabel("Cerrar")
+                        .setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder()
+                        .setCustomId("cancel_close")
+                        .setLabel("Cancelar")
+                        .setStyle(ButtonStyle.Secondary),
+                );
 
         case "confirm_close":
             return new ActionRowBuilder()
@@ -203,6 +255,45 @@ function setButton(buttonName) {
                         .setEmoji("🛑")
                         .setLabel("Borrar ticket")
                         .setStyle(ButtonStyle.Primary),
+                );
+        
+        case "statsMenu":
+            return new ActionRowBuilder()
+                .addComponents(
+                    new SelectMenuBuilder()
+                        .setCustomId("statsMenu")
+                        .setPlaceholder("Selecciona una opción")
+                        .addOptions({
+                            label: "Estadísticas del día",
+                            value: "statsTickets_day",
+                            description: "1 día de intervalo",
+                            emoji: "📋",
+                          },
+                          {
+                            label: "Estadísticas de la semana",
+                            value: "statsTickets_week",
+                            description: "1 semana de intervalo",
+                            emoji: "📋",
+                          },
+                          {
+                            label: "Estadísticas del mes",
+                            value: "statsTickets_month",
+                            description: "1 mes de intervalo",
+                            emoji: "📋",
+                          },
+                          {
+                            label: "Estadísticas del año",
+                            value: "statsTickets_year",
+                            description: "1 año de intervalo",
+                            emoji: "📋",
+                          },
+                          {
+                            label: "Estadísticas generales",
+                            value: "statsTickets",
+                            description: "Estadísticas generales",
+                            emoji: "📋",
+                          },
+                        )
                 );
     };
 };
@@ -234,10 +325,33 @@ function setEmbed(embedName, param1, param2) {
         case "post":
             let post = new EmbedBuilder()
                 .setColor(0x5865F2);
-            for (const key in param1) { post.addFields({name: key, value: param1[key]}); };
+            for (const key in param1) {
+                post.addFields({name: key, value: param1[key]});
+            };
             if(param2){ post.setImage(param2); };
             post.setTimestamp();
             return post;
+        
+        case "viewStats":
+            return new EmbedBuilder()
+                .setTitle("Estadísticas de tickets")
+                .setColor(0xf7f08a)
+                .setFields(
+                    { name: "Tickets Totales", value: `${param1.total}`, inline: true},
+                    { name: "Tickets Abiertos", value: `${param1.abiertos}`, inline: true},
+                    { name: "Tickets reabiertos", value: `${param1.reabiertos}`, inline: true},
+                    { name: "Tickets Cerrados", value: `${param1.cerrados}`, inline: true},
+                );
+            
+        case "timeStats":
+            return new EmbedBuilder()
+                .setTitle(`Estadísticas ${param1}`)
+                .setColor(0xf7f08a)
+                .setFields(
+                    { name: "Tickets Abiertos", value: `${param2.abiertos}`, inline: true},
+                    { name: "Tickets reabiertos", value: `${param2.reabiertos}`, inline: true},
+                    { name: "Tickets Cerrados", value: `${param2.cerrados}`, inline: true},
+                );
     };
 };
 
@@ -340,39 +454,29 @@ async function getParticipants(channel) {
     return [...new Set(users)].filter(id => id !== client.user.id);
 };
 
-function insertMongo(id, data){
-    let mongoData = Object.assign({}, data);
-    mongoData = Object.assign({id: id}, mongoData);
-    Object.assign(mongoData, {closing_user: ""});
-    Object.assign(mongoData, {participantes: ""});
-    Object.assign(mongoData, {estado: true});
-    Object.assign(mongoData, {reabierto: false});
-    if(typeof mongoSchema === "undefined") {
-        for(const key in mongoData) {
-            mongoSchema = Object.assign({}, mongoSchema, {[key]: typeof mongoData[key]});
-        };
-        mongoSchema = new Schema( mongoSchema, { timestamps: true });
-        mongoModel = model(MONGO_COLLECTION, mongoSchema);
+async function getStats(data, time) {
+    let statData = Object();
+    switch (typeof time) {
+        case "undefined":
+            for (const key in data) {
+                Object.assign(statData, {
+                    [data[key].name]: await countMongo(data[key].value)
+                });
+            };
+            break;
+        default:
+            for (const key in data) {
+                Object.assign(statData, {
+                    [data[key].name]: await countMongo(Object.assign(data[key].value , { 
+                        createdAt: { $gte: time } 
+                    }))
+                });
+            };
+            break;
     };
-    let fields = new mongoModel(mongoData);
-    fields.save(function (err) {
-        if (err) return console.error(err);
-        console.log("Guardado con éxito");
-    });
+    return statData;
 };
-
-function updateMongo(id, data){
-    const collection  = connection.db.collection(MONGO_COLLECTION);
-    Object.assign(data, {updatedAt: new Date()});
-    const filter = { id: id };
-    collection.findOneAndUpdate(filter, {$set:data}, {new:true})
-};
-
-function deleteMongo(id) {
-    const collection  = connection.db.collection(MONGO_COLLECTION);
-    const filter = { id: id };
-    collection.deleteOne(filter)
-};
+    
 
 (async () => {
   try {
@@ -442,6 +546,14 @@ client.on("interactionCreate", async interaction => {
     if (interaction.commandName === "ping") {
         await interaction.reply("Pong!");
     };
+
+    if (interaction.commandName === "stats") {
+        let statData = await getStats(statQuery);
+        interaction.reply({
+            embeds: [setEmbed("viewStats", statData)],
+            components: [setButton("statsMenu")]
+        });
+    }
     
     if(typeof interaction.customId !== "undefined") {
         switch (interaction.customId) {
@@ -479,7 +591,55 @@ client.on("interactionCreate", async interaction => {
             case "transcript_ticket":
                 transcriptTicket(interaction.channel, interaction);
                 break;
-        };
+            
+            case "statsMenu":
+                let time = new Date();
+                switch (interaction.values[0]) {
+                    case "statsTickets_day":
+                        time.setDate(time.getDate()-1);
+                        time.setUTCHours(23, 59, 59, 999);
+                        getStats(statQuery, time).then(statData => {
+                            interaction.update({
+                                embeds: [setEmbed("timeStats", "día", statData)],
+                            });
+                        });
+                        break;
+                    case "statsTickets_week":
+                        time.setDate(time.getDate()-7);
+                        time.setUTCHours(23, 59, 59, 999);
+                        getStats(statQuery, time).then(statData => {
+                            interaction.update({
+                                embeds: [setEmbed("timeStats", "semana", statData)],
+                            });
+                        });
+                        break;
+                    case "statsTickets_month":
+                        time.setMonth(time.getMonth()-1);
+                        time.setUTCHours(23, 59, 59, 999);
+                        getStats(statQuery, time).then(statData => {
+                            interaction.update({
+                                embeds: [setEmbed("timeStats", "mes", statData)],
+                            });
+                        });
+                        break;
+                    case "statsTickets_year":
+                        time.setFullYear(time.getFullYear() - 1)
+                        time.setUTCHours(23, 59, 59, 999);
+                        getStats(statQuery, time).then(statData => {
+                            interaction.update({
+                                embeds: [setEmbed("timeStats", "año", statData)],
+                            });
+                        });
+                        break;
+                    case "statsTickets":
+                        getStats(statQuery).then(statData => {
+                            interaction.update({
+                                embeds: [setEmbed("viewStats", statData)],
+                            });
+                        });
+                        break;
+                };
+        };  
     };
 });
 
