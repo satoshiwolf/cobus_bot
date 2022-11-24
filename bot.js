@@ -146,7 +146,7 @@ function convertUTCDateToLocalDate(date) {
 };
 
 function insertMongo(id, data) {
-    let mongoData = Object.assign({}, data);
+    let mongoData = JSON.parse(JSON.stringify(data));
     mongoData = Object.assign({id: id}, mongoData);
     Object.assign(mongoData, {closing_user: ""});
     Object.assign(mongoData, {participantes: ""});
@@ -456,19 +456,20 @@ async function getParticipants(channel) {
 };
 
 async function getStats(data, time) {
+    let query = JSON.parse(JSON.stringify(data));
     let statData = Object();
     switch (typeof time) {
         case "undefined":
-            for (const key in data) {
+            for (const key in query) {
                 Object.assign(statData, {
-                    [data[key].name]: await countMongo(data[key].value)
+                    [query[key].name]: await countMongo(query[key].value)
                 });
             };
             break;
         default:
-            for (const key in data) {
+            for (const key in query) {
                 Object.assign(statData, {
-                    [data[key].name]: await countMongo(Object.assign(data[key].value , { 
+                    [query[key].name]: await countMongo(Object.assign(query[key].value , { 
                         createdAt: { $gte: time } 
                     }))
                 });
