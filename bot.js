@@ -38,6 +38,8 @@ const {
     TICKETS_CATEGORY, 
     TICKETS_PREFIX, 
     TICKETS_LOG_CHANNEL,
+    MONGO_USER,
+    MONGO_PASS,
     MONGO_DATABASE,
     MONGO_HOST,
     MONGO_PORT,
@@ -48,7 +50,7 @@ const {
 /*########################################*/
 
 const { Schema, model, mongoose } = require('mongoose');
-mongoose_url = `mongodb://${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}`
+mongoose_url = `mongodb://${MONGO_USER}:${MONGO_PASS}@${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}?authSource=admin`;
 
 mongoose.connect(mongoose_url, {
     useNewUrlParser: true,
@@ -475,7 +477,6 @@ async function getStats(data, time) {
     };
     return statData;
 };
-    
 
 (async () => {
   try {
